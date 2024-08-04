@@ -1,0 +1,117 @@
+<!--Code adapted from w3schools and stackoverflow:
+    https://stackoverflow.com/questions/17426199/jquery-ajax-and-json-format
+    https://stackoverflow.com/questions/23728626/localstorage-and-json-stringify-json-parse
+    https://www.w3schools.com/jsref/met_document_getelementbyid.asp
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <style>
+        /* style CSS */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #808080;
+        }
+        .login-container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0px 0px 10px 0px rgba(0,0,0,0.1);
+            width: 300px;
+        }
+        input[type="text"],
+        input[type="password"],
+        input[type="submit"],
+        input[type="button"] {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        input[type="submit"] {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        input[type="submit"]:hover {
+            background-color: #45a049;
+        }
+        .error {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h2>Login</h2>
+        <form id="login-form">
+            <label for="email">Email</label>
+            <input type="text" id="email" name="email"><br><br>
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password"><br><br>
+            <span id="message" class="error"></span>
+            <input type="submit" value="Login">
+        </form>
+        <p>New User? <a href="/register.html">Register here</a></p>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        const url = "https://bf9n62wkkk.execute-api.us-east-1.amazonaws.com/login/lambda_msc_login";
+
+        function login() {
+            var formData = {
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value
+            };
+
+            $.ajax({
+                url: url,
+                dataType: 'json',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(formData),
+                success: function(data, textStatus, jqXHR) {
+                    if (data.statusCode == 200){
+                        console.log(data);
+                        // Redirect to main.html
+                        const resp = JSON.parse(data.body);
+                        window.location.href = `main.html`;
+                        localStorage.setItem('email', JSON.stringify(resp.email));
+                        localStorage.setItem('username', JSON.stringify(resp.username));
+                        localStorage.setItem('subscriptions', JSON.stringify(resp.subscriptions));
+                    }
+
+                    else {
+                        // Clear input fields
+                        document.getElementById('email').value = "";
+                        document.getElementById('password').value = "";
+                        document.getElementById('message').innerText = "email or password is invalid";
+                    }
+                },
+                error: function(jqXHR, textStatus, errorThrown) {
+                    console.error('Error:', errorThrown);
+                }
+            });
+        }
+
+        document.getElementById('login-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            login();
+        });
+    </script>
+</body>
+</html>

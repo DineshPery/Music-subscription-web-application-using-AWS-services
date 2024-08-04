@@ -1,0 +1,276 @@
+<!-- Code adapted from :
+     https://www.w3schools.com/jsref/met_document_addeventlistener.asp
+     https://www.javatpoint.com/javascript-onclick-event
+     http://www.java2s.com/example/javascript/jquery/jquery-document-click-function.html
+     https://stackoverflow.com/questions/17426199/jquery-ajax-and-json-format
+    https://stackoverflow.com/questions/23728626/localstorage-and-json-stringify-json-parse
+    https://www.w3schools.com/jsref/met_document_getelementbyid.asp
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Main Page</title>
+    <style>
+        /* CSS styles */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .logout {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+        }
+        .error {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <h1 id="user_name"></h1>
+
+    <div class="logout">
+        <a href="/">Logout</a>
+    </div>
+
+    <div class="subscription-area section">
+        <h3>User Subscriptions</h3>
+        <table id="subscriptions-table">
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Artist</th>
+                    <th>Year</th>
+                    <th>Image</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Subscriptions will be added dynamically -->
+            </tbody>
+        </table>
+    </div>
+
+    <div>
+        <h2>Music Query</h2>
+        <form id="search-form">
+            <label for="title">Title:</label>
+            <input type="text" id="title" name="title"><br><br>
+
+            <label for="artist">Artist:</label>
+            <input type="text" id="artist" name="artist"><br><br>
+
+            <label for="year">Year:</label>
+            <input type="text" id="year" name="year"><br><br>
+
+            <input type="submit" value="Search">
+        </form>
+
+        <div class="search-results section">
+            <h3>search results</h3>
+
+            <table id="search-table">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Artist</th>
+                        <th>Year</th>
+                        <th>Image</th>
+                        <th><label class="error" id="subscribe-error" style="display: none;">Music already Subscribed</label></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Search results will be added dynamically -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+    function searchMusic(event) {
+    event.preventDefault();
+
+    // search data
+    const title = document.getElementById('title').value;
+    const artist = document.getElementById('artist').value;
+    const year = document.getElementById('year').value;
+
+    const searchData = {
+        title: title,
+        artist: artist,
+        year: year
+    };
+
+    $.ajax({
+        url: 'https://mrlz3ds7hh.execute-api.us-east-1.amazonaws.com/main/lambda_msc_main',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(searchData),
+        success: function(response) {
+            console.log(response);
+
+            // Retrieve the query results
+            const searchResults = JSON.parse(response.body).search_results;
+            $('#search-table tbody').empty();
+
+            if (searchResults.length === 0) {
+                const noResMsg = `
+                    <tr>
+                        <td colspan="5">No results retrieved. Please query again.</td>
+                    </tr>
+                `;
+                $('#search-table tbody').append(noResMsg);
+            }
+            else {
+                searchResults.forEach(result => {
+                    const resultHtml = `
+                        <tr>
+                            <td>${result.title}</td>
+                            <td>${result.artist}</td>
+                            <td>${result.year}</td>
+                            <td><img src="${result.img_url}" alt="${result.artist}" style="height: 100px; width: auto;"></td>
+                            <td><button class="subscribe-btn" data-title="${result.title}">Subscribe</button></td>
+                        </tr>
+                    `;
+                    $('#search-table tbody').append(resultHtml);
+                });
+            }
+        },
+        error: function(jqXHR, textStatus, errorThrown) {
+            console.error('Error:', errorThrown);
+        }
+    });
+    }
+
+    // Form submission event listener
+    document.getElementById('search-form').addEventListener('submit', searchMusic);
+
+    // Music Subscription
+    function subscribeMusic(title) {
+        const email = JSON.parse(localStorage.getItem('email')); // Retrieve the session email from localStorage
+        const data = { email: email, title: title, subscribe: 'true' };
+
+        $.ajax({
+            url: 'https://mrlz3ds7hh.execute-api.us-east-1.amazonaws.com/main/lambda_msc_main',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(data),
+            success: function(response) {
+                console.log(response);
+                const subscriptions = JSON.parse(response.body).subscriptions;
+                const msg = JSON.parse(response.body).message;
+                // Update the UI with the updated subscriptions
+                displaySubscriptions(subscriptions);
+                if (msg === "already subscribed") {
+                    $('#subscribe-error').show(); // Show the error message
+                    setTimeout(function() {
+                        $('#subscribe-error').hide(); // Hide the error message after 10 seconds
+                    }, 3000);
+                }
+            },
+            error: function(jqXHR, textStatus, errorThrown) {
+                console.error('Error:', errorThrown);
+            }
+        });
+    }
+
+    //Display subscriptions
+    function displaySubscriptions(subscriptions) {
+        $('#subscriptions-table tbody').empty();
+        if (subscriptions.length === 0) {
+            $('#subscriptions-table tbody').html('<tr><td colspan="5">No User Subscriptions. Add some music using below search query</td></tr>');
+        } else {
+            subscriptions.forEach(sub => {
+                const rowHtml = `
+                    <tr>
+                        <td>${sub.title}</td>
+                        <td>${sub.artist}</td>
+                        <td>${sub.year}</td>
+                        <td><img src="${sub.img_url}" alt="${sub.artist}" style="height: 100px; width: auto;"></td>
+                        <td><button class="remove-btn" data-title="${sub.title}">Remove</button></td> <!-- Remove button added -->
+                    </tr>
+                `;
+                $('#subscriptions-table tbody').append(rowHtml);
+            });
+        }
+    }
+
+
+    // main function
+    window.onload = function () {
+        var username = JSON.parse(localStorage.getItem('username'));
+        const subscriptions = JSON.parse(localStorage.getItem('subscriptions'));
+
+        document.getElementById('user_name').innerText = 'Welcome back, ' + username;
+
+        const subscriptionsTable = document.getElementById('subscriptions-table');
+
+        if (subscriptions && subscriptions.length > 0) {
+            const tbody = subscriptionsTable.querySelector('tbody');
+            subscriptions.forEach(sub => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${sub.title}</td>
+                    <td>${sub.artist}</td>
+                    <td>${sub.year}</td>
+                    <td><img src="${sub.img_url}" alt="${sub.artist}" style="height: 100px; width: auto;"></td>
+                    <td><button class="remove-btn" data-title="${sub.title}">Remove</button></td>
+                `;
+                tbody.appendChild(row);
+            });
+        } else {
+            const messageRow = document.createElement('tr');
+            messageRow.innerHTML = '<td colspan="4">No Music Subscriptions</td>';
+            subscriptionsTable.querySelector('tbody').appendChild(messageRow);
+        }
+
+        // subscribe button event listener
+        $(document).on('click', '.subscribe-btn', function() {
+            const title = $(this).data('title');
+            subscribeMusic(title);
+        });
+
+        // remove button event listener
+        $(document).on('click', '.remove-btn', function() {
+            const title = $(this).data('title');
+            removeSubscription(title);
+        });
+    }
+
+    // remove subscription
+    function removeSubscription(title) {
+
+        const email = JSON.parse(localStorage.getItem('email'));
+        const data = { email: email, title: title, remove: 'true' };
+
+        $.ajax({
+            url: 'https://mrlz3ds7hh.execute-api.us-east-1.amazonaws.com/main/lambda_msc_main',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(data),
+            success: function(response) {
+                console.log(response);
+                const subscriptions = JSON.parse(response.body).subscriptions;
+                // Update the UI with the updated subscriptions
+                displaySubscriptions(subscriptions);
+            },
+            error: function(jqXHR, textStatus, errorThrown) {
+                console.error('Error:', errorThrown);
+            }
+        });
+    }
+    </script>
+</body>
+</html>
